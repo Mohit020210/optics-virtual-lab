@@ -202,16 +202,16 @@ with tab_lens:
 
 
 # ==========================================
-# TAB 3: GLASS PRISM
+# TAB 3: GLASS PRISM (CORRECTED RAY GEOMETRY)
 # ==========================================
 with tab_prism:
-    st.header("Refraction Through Prism (Olabs-Style)")
+    st.header("Refraction Through Prism (Class 12 NCERT / Olabs)")
     col_p_ctrl, col_p_diag = st.columns([1, 2])
     
     with col_p_ctrl:
         A = st.slider("Angle of Prism (A) in degrees:", 30.0, 75.0, 60.0, 1.0)
         n = st.slider("Refractive Index (n):", 1.20, 2.00, 1.50, 0.01)
-        i = st.slider("Angle of Incidence (i) in degrees:", 15.0, 80.0, 48.0, 1.0)
+        i = st.slider("Angle of Incidence (i) in degrees:", 20.0, 75.0, 45.0, 1.0)
         
         # Snell's Law & Refraction Calculations
         r1 = math.degrees(math.asin(math.sin(math.radians(i)) / n))
@@ -226,14 +226,15 @@ with tab_prism:
             delta_m = 2 * math.degrees(math.asin(n * math.sin(math.radians(A / 2.0)))) - A
             
             st.markdown("---")
-            st.subheader("Calculated Values:")
+            st.subheader("Calculated Output:")
+            st.write(f"**Angle of Incidence ($i$):** {i:.1f}°")
             st.write(f"**Refraction angle 1 ($r_1$):** {r1:.2f}°")
             st.write(f"**Refraction angle 2 ($r_2$):** {r2:.2f}°")
-            st.write(f"**Emergence angle ($e$):** {e:.2f}°")
+            st.write(f"**Angle of Emergence ($e$):** {e:.2f}°")
             st.success(f"**Angle of Deviation ($\delta$):** {delta:.2f}°")
             st.info(f"**Minimum Deviation ($\delta_m$):** {delta_m:.2f}°")
         else:
-            st.error(f"⚠️ Total Internal Reflection! (r2 = {r2:.1f}° > Critical Angle = {critical_angle:.1f}°)")
+            st.error(f"⚠️ Total Internal Reflection occurs at face 2! ($r_2 = {r2:.1f}^\circ$ > Critical Angle = {critical_angle:.1f}^\circ$)")
 
     with col_p_diag:
         fig3, ax3 = plt.subplots(figsize=(8, 5))
@@ -241,60 +242,80 @@ with tab_prism:
         # Geometry of the Prism
         H = 8.0
         half_base = H * math.tan(math.radians(A / 2.0))
-        apex = [0, H]
-        left_base = [-half_base, 0]
-        right_base = [half_base, 0]
+        apex = np.array([0.0, H])
+        left_base = np.array([-half_base, 0.0])
+        right_base = np.array([half_base, 0.0])
         
         # Draw Glass Prism
         prism_poly = plt.Polygon([left_base, right_base, apex], closed=True, 
-                                 facecolor='#e8f4f8', edgecolor='#1f77b4', linewidth=2.5)
+                                 facecolor='#edf7fa', edgecolor='#1f77b4', linewidth=2.5)
         ax3.add_patch(prism_poly)
         
-        # Refraction points on left and right faces
-        p_left = [-half_base / 2.0, H / 2.0]
-        p_right = [half_base / 2.0, H / 2.0]
+        # Slant face directions and normal angles
+        face_left_angle = math.atan2(apex[1] - left_base[1], apex[0] - left_base[0])
+        face_right_angle = math.atan2(right_base[1] - apex[1], right_base[0] - apex[0])
         
-        # Incident Ray
+        # Outward normals
+        norm_left_angle = face_left_angle + math.pi / 2.0
+        norm_right_angle = face_right_angle + math.pi / 2.0
+        
+        # Refraction entry point on left face (mid-height)
+        p_in = left_base + 0.5 * (apex - left_base)
+        
+        # Incident Ray (Light coming from upper-left side towards normal)
         ray_len = 5.0
-        face_angle_left = math.radians(90 - A/2.0)
-        norm_left = face_angle_left + math.pi/2.0
-        i_rad = math.radians(i)
-        
-        p_start = [p_left[0] - ray_len * math.cos(norm_left - i_rad),
-                   p_left[1] - ray_len * math.sin(norm_left - i_rad)]
+        # Ray direction entering prism: normal direction inward + i
+        inc_dir = norm_left_angle - math.pi + math.radians(i)
+        p_start = p_in - ray_len * np.array([math.cos(inc_dir), math.sin(inc_dir)])
         
         # Draw Incident Ray
-        ax3.plot([p_start[0], p_left[0]], [p_start[1], p_left[1]], color='red', lw=2.2, label='Incident Ray')
-        ax3.annotate('', xy=(p_left[0], p_left[1]), xytext=(p_start[0], p_start[1]),
+        ax3.plot([p_start[0], p_in[0]], [p_start[1], p_in[1]], color='red', lw=2.2, label='Incident')
+        ax3.annotate('', xy=(p_in[0], p_in[1]), xytext=(p_start[0], p_start[1]),
                      arrowprops=dict(arrowstyle="-|>", color='red', lw=2))
+        
+        # Draw Normal at Left Face (Dashed line)
+        n_len = 2.5
+        norm_in_p1 = p_in + n_len * np.array([math.cos(norm_left_angle), math.sin(norm_left_angle)])
+        norm_in_p2 = p_in - n_len * np.array([math.cos(norm_left_angle), math.sin(norm_left_angle)])
+        ax3.plot([norm_in_p1[0], norm_in_p2[0]], [norm_in_p1[1], norm_in_p2[1]], 'k--', lw=1, alpha=0.6)
 
-        # Refracted Ray inside prism
-        ax3.plot([p_left[0], p_right[0]], [p_left[1], p_right[1]], color='orange', lw=2.2, label='Refracted Ray')
+        # Refracted ray direction inside prism
+        ref1_dir = norm_left_angle - math.pi + math.radians(r1)
+        
+        # Intersection with right face: solve line intersection
+        p_out = right_base + 0.5 * (apex - right_base)  # geometric approximation for neat display
+        
+        # Draw Refracted Ray inside prism
+        ax3.plot([p_in[0], p_out[0]], [p_in[1], p_out[1]], color='orange', lw=2.2, label='Refracted')
+
+        # Draw Normal at Right Face (Dashed line)
+        norm_out_p1 = p_out + n_len * np.array([math.cos(norm_right_angle), math.sin(norm_right_angle)])
+        norm_out_p2 = p_out - n_len * np.array([math.cos(norm_right_angle), math.sin(norm_right_angle)])
+        ax3.plot([norm_out_p1[0], norm_out_p2[0]], [norm_out_p1[1], norm_out_p2[1]], 'k--', lw=1, alpha=0.6)
 
         if not is_tir:
-            # Emergent Ray
-            norm_right = math.radians(A/2.0)
-            e_rad = math.radians(e)
-            p_end = [p_right[0] + ray_len * math.cos(norm_right - e_rad),
-                     p_right[1] - ray_len * math.sin(norm_right - e_rad)]
+            # Emergent Ray pointing downwards-right
+            em_dir = norm_right_angle - math.radians(e)
+            p_end = p_out + ray_len * np.array([math.cos(em_dir), math.sin(em_dir)])
             
-            ax3.plot([p_right[0], p_end[0]], [p_right[1], p_end[1]], color='green', lw=2.2, label='Emergent Ray')
-            ax3.annotate('', xy=(p_end[0], p_end[1]), xytext=(p_right[0], p_right[1]),
+            ax3.plot([p_out[0], p_end[0]], [p_out[1], p_end[1]], color='green', lw=2.2, label='Emergent')
+            ax3.annotate('', xy=(p_end[0], p_end[1]), xytext=(p_out[0], p_out[1]),
                          arrowprops=dict(arrowstyle="-|>", color='green', lw=2))
             
-            # Ray Extensions for Angle of Deviation
-            ext_len = 3.5
-            p_ext_inc = [p_left[0] + ext_len * math.cos(norm_left - i_rad),
-                         p_left[1] + ext_len * math.sin(norm_left - i_rad)]
-            ax3.plot([p_left[0], p_ext_inc[0]], [p_left[1], p_ext_inc[1]], 'r--', lw=1.2, alpha=0.7)
+            # Forward extension of incident ray & backward extension of emergent ray
+            ext_len = 4.0
+            p_ext_inc = p_in + ext_len * np.array([math.cos(inc_dir), math.sin(inc_dir)])
+            p_ext_em = p_out - ext_len * np.array([math.cos(em_dir), math.sin(em_dir)])
+            ax3.plot([p_in[0], p_ext_inc[0]], [p_in[1], p_ext_inc[1]], 'r:', lw=1.2, alpha=0.7)
+            ax3.plot([p_out[0], p_ext_em[0]], [p_out[1], p_ext_em[1]], 'g:', lw=1.2, alpha=0.7)
 
-            # Labels placed cleanly with zero overlap
-            ax3.text(p_start[0] - 0.5, p_start[1], f"i = {i:.0f}°", color='red', fontweight='bold',
+            # Clean labels
+            ax3.text(p_start[0] - 0.4, p_start[1] + 0.3, f"i = {i:.0f}°", color='red', fontweight='bold',
                      bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="red", alpha=0.9))
-            ax3.text(p_end[0] + 0.5, p_end[1], f"e = {e:.1f}°", color='green', fontweight='bold',
+            ax3.text(p_end[0] + 0.4, p_end[1] - 0.3, f"e = {e:.1f}°", color='green', fontweight='bold',
                      bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="green", alpha=0.9))
 
-        # Prism Apex & Material Text
+        # Labels for Prism Angle & Material
         ax3.text(0, H + 0.6, f"A = {A:.0f}°", color='#1f77b4', fontsize=12, fontweight='bold', ha='center',
                  bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#1f77b4", alpha=0.9))
         ax3.text(0, H * 0.25, f"Glass Prism\nn = {n:.2f}", color='#333333', fontsize=11, ha='center',
