@@ -22,7 +22,6 @@ with tab_mirror:
         u_mag = st.slider("Object Distance |u| (cm):", 5.0, 80.0, 30.0, 1.0)
         f_mag = st.slider("Focal Length |f| (cm):", 10.0, 40.0, 15.0, 1.0)
         ho = st.slider("Object Height (cm):", 1.0, 10.0, 4.0, 0.5)
-        axis_mode = st.radio("Axis Scaling:", ["Fixed Optical Bench", "Dynamic Zoom"], horizontal=True, key="m_axis_mode")
         
         # Cartesian Sign Convention
         u = -u_mag
@@ -47,19 +46,19 @@ with tab_mirror:
         st.metric("Magnification (m)", f"{m:.2f}" if not at_focus else "∞")
         st.metric("Image Height (hi)", f"{hi:.2f} cm" if not at_focus else "∞")
         st.info(f"**Nature:** {nature}")
-        
-        with st.expander("ℹ️ Why does image size change?"):
-            st.write(
-                """
-                In spherical mirrors, magnification depends on position:
-                $$m = -\\frac{v}{u} = \\frac{h_i}{h_o}$$
-                - Only a **plane mirror** produces an image of fixed size ($m = 1$).
-                - With fixed axes, the object remains the exact same size on screen, and the image scales naturally according to optics equations.
-                """
-            )
 
     with col_diag:
         fig, ax = plt.subplots(figsize=(9, 4.8))
+        
+        # PERMANENTLY FIXED AXES & TICKS (Prevents all jumping/rescaling)
+        X_MIN, X_MAX = -100.0, 30.0
+        Y_MIN, Y_MAX = -15.0, 15.0
+        ax.set_xlim(X_MIN, X_MAX)
+        ax.set_ylim(Y_MIN, Y_MAX)
+        ax.set_xticks(np.arange(-100, 31, 10))
+        ax.set_yticks(np.arange(-15, 16, 5))
+        ax.set_autoscale_on(False)
+        
         ax.axhline(0, color='black', linewidth=1.2) # Principal Axis
         
         # Fixed physical mirror aperture
@@ -91,19 +90,9 @@ with tab_mirror:
         ax.annotate('', xy=(u, ho), xytext=(u, 0), arrowprops=dict(arrowstyle="->", color='#d62728', lw=2.5))
         ax.text(u, ho + 1.2, f'Object\n{ho:.1f}cm', color='#d62728', ha='center', fontsize=9, fontweight='bold',
                 bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#d62728", alpha=0.85))
-        
-        # Establish viewport limits
-        if axis_mode == "Fixed Optical Bench":
-            X_MIN, X_MAX = -95.0, 35.0
-            Y_MIN, Y_MAX = -16.0, 16.0
-        else:
-            x_left = min(-u_mag - 10, -2*f_mag - 10, v - 10 if not at_focus and v < 0 else -10)
-            x_right = max(20, v + 10 if not at_focus and v > 0 else 20)
-            X_MIN, X_MAX = min(x_left, -70), max(x_right, 30)
-            Y_MIN, Y_MAX = -16.0, 16.0
 
         if not at_focus:
-            hi_draw = np.clip(hi, -14.0, 14.0)
+            hi_draw = np.clip(hi, -13.5, 13.5)
             is_visible = X_MIN <= v <= X_MAX
 
             if is_visible:
@@ -128,19 +117,19 @@ with tab_mirror:
                     ax.plot([0, v], [0, hi_draw], color='purple', linestyle=':', lw=1.3)
             else:
                 # Out-of-bounds indicator for fixed optical bench
-                ax.annotate(f'Image formed beyond bench view\n(v = {v:.1f} cm, hi = {hi:.1f} cm)', 
-                            xy=(X_MIN + 2, hi_draw), xytext=(X_MIN + 24, hi_draw),
+                target_edge = X_MAX if v > 0 else X_MIN
+                ax.annotate(f'Image formed beyond bench\n(v = {v:.1f} cm, hi = {hi:.1f} cm)', 
+                            xy=(target_edge - 2 if v > 0 else target_edge + 2, hi_draw), 
+                            xytext=(target_edge - 28 if v > 0 else target_edge + 4, hi_draw),
                             arrowprops=dict(arrowstyle="->", color='#2ca02c', lw=2),
                             bbox=dict(boxstyle="round,pad=0.3", fc="#eafaf1", ec="#2ca02c", alpha=0.9),
                             fontsize=9, fontweight='bold', color='#2ca02c')
                 ax.plot([u, 0], [ho, ho], color='orange', linestyle='--', lw=1.3)
-                ax.plot([0, X_MIN], [ho, ho + (hi - ho)/(v - 0)*(X_MIN)], color='orange', lw=1.3)
+                ax.plot([0, target_edge], [ho, ho + (hi - ho)/(v - 0)*(target_edge)], color='orange', lw=1.3)
                 ax.plot([u, 0], [ho, 0], color='purple', linestyle='--', lw=1.3)
-                ax.plot([0, X_MIN], [0, (hi/v)*(X_MIN)], color='purple', lw=1.3)
+                ax.plot([0, target_edge], [0, (hi/v)*(target_edge)], color='purple', lw=1.3)
 
-        # Enforce fixed axes
-        ax.set_xlim(X_MIN, X_MAX)
-        ax.set_ylim(Y_MIN, Y_MAX)
+        # Enforce fixed axes styling
         ax.set_xlabel("Principal Axis (cm) — Optical Bench")
         ax.set_ylabel("Height (cm)")
         ax.grid(True, linestyle=':', alpha=0.5)
@@ -159,7 +148,6 @@ with tab_lens:
         u_mag_l = st.slider("Object Distance |u| (cm):", 5.0, 80.0, 35.0, 1.0, key="lens_u")
         f_mag_l = st.slider("Focal Length |f| (cm):", 10.0, 40.0, 20.0, 1.0, key="lens_f")
         ho_l = st.slider("Object Height (cm):", 1.0, 10.0, 4.0, 0.5, key="lens_ho")
-        axis_mode_l = st.radio("Axis Scaling:", ["Fixed Optical Bench", "Dynamic Zoom"], horizontal=True, key="l_axis_mode")
         
         # Cartesian Sign Convention
         u_l = -u_mag_l
@@ -186,6 +174,16 @@ with tab_lens:
 
     with col_l_diag:
         fig2, ax2 = plt.subplots(figsize=(9, 4.8))
+        
+        # PERMANENTLY FIXED AXES & TICKS (Symmetric optical bench)
+        X_MIN_L, X_MAX_L = -80.0, 80.0
+        Y_MIN_L, Y_MAX_L = -15.0, 15.0
+        ax2.set_xlim(X_MIN_L, X_MAX_L)
+        ax2.set_ylim(Y_MIN_L, Y_MAX_L)
+        ax2.set_xticks(np.arange(-80, 81, 20))
+        ax2.set_yticks(np.arange(-15, 16, 5))
+        ax2.set_autoscale_on(False)
+        
         ax2.axhline(0, color='black', linewidth=1.2)
         
         # Fixed physical lens height
@@ -207,18 +205,9 @@ with tab_lens:
         ax2.text(u_l, ho_l + 1.2, f'Object\n{ho_l:.1f}cm', color='#d62728', ha='center', fontsize=9, fontweight='bold',
                  bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#d62728", alpha=0.85))
 
-        # Establish viewport limits
-        if axis_mode_l == "Fixed Optical Bench":
-            X_MIN_L, X_MAX_L = -85.0, 85.0
-            Y_MIN_L, Y_MAX_L = -16.0, 16.0
-        else:
-            x_span = max(u_mag_l + 15, abs(v_l) + 15 if not at_focus_l else 50, 2*f_mag_l + 15)
-            X_MIN_L, X_MAX_L = -min(x_span, 85), min(x_span, 85)
-            Y_MIN_L, Y_MAX_L = -16.0, 16.0
-
         # Image Arrow and Rays
         if not at_focus_l:
-            hi_draw_l = np.clip(hi_l, -14.0, 14.0)
+            hi_draw_l = np.clip(hi_l, -13.5, 13.5)
             is_visible_l = X_MIN_L <= v_l <= X_MAX_L
             
             if is_visible_l:
@@ -243,9 +232,9 @@ with tab_lens:
                     ax2.plot([0, v_l], [0, hi_draw_l], color='purple', linestyle=':', lw=1.3)
             else:
                 target_edge = X_MAX_L if v_l > 0 else X_MIN_L
-                ax2.annotate(f'Image formed beyond bench view\n(v = {v_l:.1f} cm, hi = {hi_l:.1f} cm)',
+                ax2.annotate(f'Image formed beyond bench\n(v = {v_l:.1f} cm, hi = {hi_l:.1f} cm)',
                              xy=(target_edge - 2 if v_l > 0 else target_edge + 2, hi_draw_l),
-                             xytext=(target_edge - 26 if v_l > 0 else target_edge + 4, hi_draw_l),
+                             xytext=(target_edge - 28 if v_l > 0 else target_edge + 4, hi_draw_l),
                              arrowprops=dict(arrowstyle="->", color='#2ca02c', lw=2),
                              bbox=dict(boxstyle="round,pad=0.3", fc="#eafaf1", ec="#2ca02c", alpha=0.9),
                              fontsize=9, fontweight='bold', color='#2ca02c')
@@ -254,9 +243,7 @@ with tab_lens:
                 ax2.plot([u_l, 0], [ho_l, 0], color='purple', linestyle='--', lw=1.3)
                 ax2.plot([0, target_edge], [0, (hi_l/v_l)*target_edge], color='purple', lw=1.3)
 
-        # Enforce fixed axes
-        ax2.set_xlim(X_MIN_L, X_MAX_L)
-        ax2.set_ylim(Y_MIN_L, Y_MAX_L)
+        # Enforce fixed axes styling
         ax2.set_xlabel("Principal Axis (cm) — Optical Bench")
         ax2.set_ylabel("Height (cm)")
         ax2.grid(True, linestyle=':', alpha=0.5)
