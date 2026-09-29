@@ -22,6 +22,7 @@ with tab_mirror:
         u_mag = st.slider("Object Distance |u| (cm):", 5.0, 80.0, 30.0, 1.0)
         f_mag = st.slider("Focal Length |f| (cm):", 10.0, 40.0, 15.0, 1.0)
         ho = st.slider("Object Height (cm):", 1.0, 10.0, 4.0, 0.5)
+        axis_mode = st.radio("Axis Scaling:", ["Fixed Optical Bench", "Dynamic Zoom"], horizontal=True, key="m_axis_mode")
         
         # Cartesian Sign Convention
         u = -u_mag
@@ -53,7 +54,7 @@ with tab_mirror:
                 In spherical mirrors, magnification depends on position:
                 $$m = -\\frac{v}{u} = \\frac{h_i}{h_o}$$
                 - Only a **plane mirror** produces an image of fixed size ($m = 1$).
-                - For concave mirrors, moving the object closer to $F$ makes the image significantly larger, while moving it beyond $C$ makes it smaller.
+                - With fixed axes, the object remains the exact same size on screen, and the image scales naturally according to optics equations.
                 """
             )
 
@@ -61,7 +62,7 @@ with tab_mirror:
         fig, ax = plt.subplots(figsize=(9, 4.8))
         ax.axhline(0, color='black', linewidth=1.2) # Principal Axis
         
-        # Fixed physical mirror aperture (does not stretch when image grows)
+        # Fixed physical mirror aperture
         MIRROR_HALF_HEIGHT = 10.0
         y_curve = np.linspace(-MIRROR_HALF_HEIGHT, MIRROR_HALF_HEIGHT, 100)
         
@@ -91,35 +92,56 @@ with tab_mirror:
         ax.text(u, ho + 1.2, f'Object\n{ho:.1f}cm', color='#d62728', ha='center', fontsize=9, fontweight='bold',
                 bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#d62728", alpha=0.85))
         
-        # Clamped visual display so drawing stays in fixed frame
+        # Establish viewport limits
+        if axis_mode == "Fixed Optical Bench":
+            X_MIN, X_MAX = -95.0, 35.0
+            Y_MIN, Y_MAX = -16.0, 16.0
+        else:
+            x_left = min(-u_mag - 10, -2*f_mag - 10, v - 10 if not at_focus and v < 0 else -10)
+            x_right = max(20, v + 10 if not at_focus and v > 0 else 20)
+            X_MIN, X_MAX = min(x_left, -70), max(x_right, 30)
+            Y_MIN, Y_MAX = -16.0, 16.0
+
         if not at_focus:
-            hi_draw = np.clip(hi, -12.0, 12.0)
-            ax.annotate('', xy=(v, hi_draw), xytext=(v, 0), arrowprops=dict(arrowstyle="->", color='#2ca02c', lw=2.5))
-            ax.text(v, hi_draw - 1.8 if hi_draw < 0 else hi_draw + 1.2, f'Image\n{hi:.1f}cm', color='#2ca02c', ha='center', fontsize=9, fontweight='bold',
-                    bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#2ca02c", alpha=0.85))
-            
-            # Parallel Ray (reflects through F)
-            ax.plot([u, 0], [ho, ho], color='orange', linestyle='--', lw=1.3)
-            if v < 0:
-                ax.plot([0, v], [ho, hi_draw], color='orange', lw=1.3)
-            else:
-                ax.plot([0, -25], [ho, ho + (ho - 0)/(0 - f)*(-25)], color='orange', lw=1.3)
-                ax.plot([0, v], [ho, hi_draw], color='orange', linestyle=':', lw=1.3)
+            hi_draw = np.clip(hi, -14.0, 14.0)
+            is_visible = X_MIN <= v <= X_MAX
 
-            # Pole Ray (reflects at vertex)
-            ax.plot([u, 0], [ho, 0], color='purple', linestyle='--', lw=1.3)
-            if v < 0:
-                ax.plot([0, v], [0, hi_draw], color='purple', lw=1.3)
-            else:
-                ax.plot([0, -25], [0, -(-ho/u)*(-25)], color='purple', lw=1.3)
-                ax.plot([0, v], [0, hi_draw], color='purple', linestyle=':', lw=1.3)
+            if is_visible:
+                ax.annotate('', xy=(v, hi_draw), xytext=(v, 0), arrowprops=dict(arrowstyle="->", color='#2ca02c', lw=2.5))
+                ax.text(v, hi_draw - 1.8 if hi_draw < 0 else hi_draw + 1.2, f'Image\n{hi:.1f}cm', color='#2ca02c', ha='center', fontsize=9, fontweight='bold',
+                        bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#2ca02c", alpha=0.85))
+                
+                # Parallel Ray (reflects through F)
+                ax.plot([u, 0], [ho, ho], color='orange', linestyle='--', lw=1.3)
+                if v < 0:
+                    ax.plot([0, v], [ho, hi_draw], color='orange', lw=1.3)
+                else:
+                    ax.plot([0, -25], [ho, ho + (ho - 0)/(0 - f)*(-25)], color='orange', lw=1.3)
+                    ax.plot([0, v], [ho, hi_draw], color='orange', linestyle=':', lw=1.3)
 
-        # Stable viewport limits
-        x_left = min(-u_mag - 10, -2*f_mag - 10, v - 10 if not at_focus and v < 0 else -10)
-        x_right = max(20, v + 10 if not at_focus and v > 0 else 20)
-        ax.set_xlim(min(x_left, -70), max(x_right, 30))
-        ax.set_ylim(-15, 15)
-        ax.set_xlabel("Principal Axis (cm)")
+                # Pole Ray (reflects at vertex)
+                ax.plot([u, 0], [ho, 0], color='purple', linestyle='--', lw=1.3)
+                if v < 0:
+                    ax.plot([0, v], [0, hi_draw], color='purple', lw=1.3)
+                else:
+                    ax.plot([0, -25], [0, -(-ho/u)*(-25)], color='purple', lw=1.3)
+                    ax.plot([0, v], [0, hi_draw], color='purple', linestyle=':', lw=1.3)
+            else:
+                # Out-of-bounds indicator for fixed optical bench
+                ax.annotate(f'Image formed beyond bench view\n(v = {v:.1f} cm, hi = {hi:.1f} cm)', 
+                            xy=(X_MIN + 2, hi_draw), xytext=(X_MIN + 24, hi_draw),
+                            arrowprops=dict(arrowstyle="->", color='#2ca02c', lw=2),
+                            bbox=dict(boxstyle="round,pad=0.3", fc="#eafaf1", ec="#2ca02c", alpha=0.9),
+                            fontsize=9, fontweight='bold', color='#2ca02c')
+                ax.plot([u, 0], [ho, ho], color='orange', linestyle='--', lw=1.3)
+                ax.plot([0, X_MIN], [ho, ho + (hi - ho)/(v - 0)*(X_MIN)], color='orange', lw=1.3)
+                ax.plot([u, 0], [ho, 0], color='purple', linestyle='--', lw=1.3)
+                ax.plot([0, X_MIN], [0, (hi/v)*(X_MIN)], color='purple', lw=1.3)
+
+        # Enforce fixed axes
+        ax.set_xlim(X_MIN, X_MAX)
+        ax.set_ylim(Y_MIN, Y_MAX)
+        ax.set_xlabel("Principal Axis (cm) — Optical Bench")
         ax.set_ylabel("Height (cm)")
         ax.grid(True, linestyle=':', alpha=0.5)
         st.pyplot(fig)
@@ -137,6 +159,7 @@ with tab_lens:
         u_mag_l = st.slider("Object Distance |u| (cm):", 5.0, 80.0, 35.0, 1.0, key="lens_u")
         f_mag_l = st.slider("Focal Length |f| (cm):", 10.0, 40.0, 20.0, 1.0, key="lens_f")
         ho_l = st.slider("Object Height (cm):", 1.0, 10.0, 4.0, 0.5, key="lens_ho")
+        axis_mode_l = st.radio("Axis Scaling:", ["Fixed Optical Bench", "Dynamic Zoom"], horizontal=True, key="l_axis_mode")
         
         # Cartesian Sign Convention
         u_l = -u_mag_l
@@ -184,33 +207,57 @@ with tab_lens:
         ax2.text(u_l, ho_l + 1.2, f'Object\n{ho_l:.1f}cm', color='#d62728', ha='center', fontsize=9, fontweight='bold',
                  bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#d62728", alpha=0.85))
 
+        # Establish viewport limits
+        if axis_mode_l == "Fixed Optical Bench":
+            X_MIN_L, X_MAX_L = -85.0, 85.0
+            Y_MIN_L, Y_MAX_L = -16.0, 16.0
+        else:
+            x_span = max(u_mag_l + 15, abs(v_l) + 15 if not at_focus_l else 50, 2*f_mag_l + 15)
+            X_MIN_L, X_MAX_L = -min(x_span, 85), min(x_span, 85)
+            Y_MIN_L, Y_MAX_L = -16.0, 16.0
+
         # Image Arrow and Rays
         if not at_focus_l:
-            hi_draw_l = np.clip(hi_l, -12.0, 12.0)
-            ax2.annotate('', xy=(v_l, hi_draw_l), xytext=(v_l, 0), arrowprops=dict(arrowstyle="->", color='#2ca02c', lw=2.5))
-            ax2.text(v_l, hi_draw_l - 1.8 if hi_draw_l < 0 else hi_draw_l + 1.2, f'Image\n{hi_l:.1f}cm', color='#2ca02c', ha='center', fontsize=9, fontweight='bold',
-                     bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#2ca02c", alpha=0.85))
+            hi_draw_l = np.clip(hi_l, -14.0, 14.0)
+            is_visible_l = X_MIN_L <= v_l <= X_MAX_L
             
-            # Parallel Ray
-            ax2.plot([u_l, 0], [ho_l, ho_l], color='orange', linestyle='--', lw=1.3)
-            if v_l > 0:
-                ax2.plot([0, v_l], [ho_l, hi_draw_l], color='orange', lw=1.3)
-            else:
-                ax2.plot([0, 35], [ho_l, ho_l + (hi_draw_l - ho_l)/(v_l - 0)*(35)], color='orange', lw=1.3)
-                ax2.plot([0, v_l], [ho_l, hi_draw_l], color='orange', linestyle=':', lw=1.3)
+            if is_visible_l:
+                ax2.annotate('', xy=(v_l, hi_draw_l), xytext=(v_l, 0), arrowprops=dict(arrowstyle="->", color='#2ca02c', lw=2.5))
+                ax2.text(v_l, hi_draw_l - 1.8 if hi_draw_l < 0 else hi_draw_l + 1.2, f'Image\n{hi_l:.1f}cm', color='#2ca02c', ha='center', fontsize=9, fontweight='bold',
+                         bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="#2ca02c", alpha=0.85))
+                
+                # Parallel Ray
+                ax2.plot([u_l, 0], [ho_l, ho_l], color='orange', linestyle='--', lw=1.3)
+                if v_l > 0:
+                    ax2.plot([0, v_l], [ho_l, hi_draw_l], color='orange', lw=1.3)
+                else:
+                    ax2.plot([0, 35], [ho_l, ho_l + (hi_draw_l - ho_l)/(v_l - 0)*(35)], color='orange', lw=1.3)
+                    ax2.plot([0, v_l], [ho_l, hi_draw_l], color='orange', linestyle=':', lw=1.3)
 
-            # Optical Center Ray
-            ax2.plot([u_l, 0], [ho_l, 0], color='purple', linestyle='--', lw=1.3)
-            if v_l > 0:
-                ax2.plot([0, v_l], [0, hi_draw_l], color='purple', lw=1.3)
+                # Optical Center Ray
+                ax2.plot([u_l, 0], [ho_l, 0], color='purple', linestyle='--', lw=1.3)
+                if v_l > 0:
+                    ax2.plot([0, v_l], [0, hi_draw_l], color='purple', lw=1.3)
+                else:
+                    ax2.plot([0, 35], [0, (hi_draw_l/v_l)*35], color='purple', lw=1.3)
+                    ax2.plot([0, v_l], [0, hi_draw_l], color='purple', linestyle=':', lw=1.3)
             else:
-                ax2.plot([0, 35], [0, (hi_draw_l/v_l)*35], color='purple', lw=1.3)
-                ax2.plot([0, v_l], [0, hi_draw_l], color='purple', linestyle=':', lw=1.3)
+                target_edge = X_MAX_L if v_l > 0 else X_MIN_L
+                ax2.annotate(f'Image formed beyond bench view\n(v = {v_l:.1f} cm, hi = {hi_l:.1f} cm)',
+                             xy=(target_edge - 2 if v_l > 0 else target_edge + 2, hi_draw_l),
+                             xytext=(target_edge - 26 if v_l > 0 else target_edge + 4, hi_draw_l),
+                             arrowprops=dict(arrowstyle="->", color='#2ca02c', lw=2),
+                             bbox=dict(boxstyle="round,pad=0.3", fc="#eafaf1", ec="#2ca02c", alpha=0.9),
+                             fontsize=9, fontweight='bold', color='#2ca02c')
+                ax2.plot([u_l, 0], [ho_l, ho_l], color='orange', linestyle='--', lw=1.3)
+                ax2.plot([0, target_edge], [ho_l, ho_l + (hi_l - ho_l)/(v_l - 0)*(target_edge)], color='orange', lw=1.3)
+                ax2.plot([u_l, 0], [ho_l, 0], color='purple', linestyle='--', lw=1.3)
+                ax2.plot([0, target_edge], [0, (hi_l/v_l)*target_edge], color='purple', lw=1.3)
 
-        x_span = max(u_mag_l + 15, abs(v_l) + 15 if not at_focus_l else 50, 2*f_mag_l + 15)
-        ax2.set_xlim(-min(x_span, 80), min(x_span, 80))
-        ax2.set_ylim(-15, 15)
-        ax2.set_xlabel("Principal Axis (cm)")
+        # Enforce fixed axes
+        ax2.set_xlim(X_MIN_L, X_MAX_L)
+        ax2.set_ylim(Y_MIN_L, Y_MAX_L)
+        ax2.set_xlabel("Principal Axis (cm) — Optical Bench")
         ax2.set_ylabel("Height (cm)")
         ax2.grid(True, linestyle=':', alpha=0.5)
         st.pyplot(fig2)
