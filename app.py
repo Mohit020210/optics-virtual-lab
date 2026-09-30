@@ -6,7 +6,7 @@ import math
 # Configure Page
 st.set_page_config(page_title="Optics Virtual Lab - Class 12", layout="wide")
 st.title("🔬 Class 12 Physics: Optics Virtual Lab")
-st.caption("Interactive simulations with Olabs-style ray diagrams and auto-scaled optics.")
+st.caption("Interactive simulations with visual-style ray diagrams and auto-scaled optics.")
 
 tab_mirror, tab_lens, tab_prism = st.tabs(["🪞 Spherical Mirror", "🔍 Spherical Lens", "🔺 Prism"])
 
@@ -205,7 +205,7 @@ with tab_lens:
 # TAB 3: GLASS PRISM (CORRECTED RAY GEOMETRY)
 # ==========================================
 with tab_prism:
-    st.header("Refraction Through Prism (Class 12 NCERT / Olabs)")
+    st.header("Refraction Through Prism (Class 12 NCERT)")
     col_p_ctrl, col_p_diag = st.columns([1, 2])
     
     with col_p_ctrl:
