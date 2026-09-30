@@ -205,7 +205,7 @@ with tab_lens:
 # TAB 3: GLASS PRISM (CORRECTED RAY GEOMETRY)
 # ==========================================
 with tab_prism:
-    st.header("Refraction Through Prism (Class 12 NCERT)")
+    st.header("Refraction Through Prism (Class 12)")
     col_p_ctrl, col_p_diag = st.columns([1, 2])
     
     with col_p_ctrl:
